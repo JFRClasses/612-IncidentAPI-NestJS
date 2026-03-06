@@ -1,6 +1,6 @@
 services:
   postgres:
-    image: postgres:latest
+    image: postgis/postgis:16-master
     container_name: PostgresDB
     ports:
       - 5432:5432
