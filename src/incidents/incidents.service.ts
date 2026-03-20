@@ -9,6 +9,8 @@ import { InjectRepository } from '@nestjs/typeorm';
 import { logger } from 'src/config/logger';
 import Redis from 'ioredis';
 import { envs } from 'src/config/envs';
+import { CacheService } from 'src/cache/cache.service';
+import { Interval } from '@nestjs/schedule';
 // npm run start:dev
 //Repositorio --> Patron de Diseño Repository JWT - Redis - PDF - AppInsights
 
@@ -19,7 +21,8 @@ export class IncidentsService {
     constructor(
         @InjectRepository(Incident)
         private readonly incidentRepository : Repository<Incident>,
-        private readonly emailService : EmailService
+        private readonly emailService : EmailService,
+        private readonly cacheService : CacheService
     ){}
 // Cloud Watch / App Insights txt / Keyvault
 // logger.info
@@ -54,12 +57,11 @@ export class IncidentsService {
     async getIncidents() : Promise<Incident[]>{
         try{
             logger.info("[IncidentService] Consultando incidentes en cache...");
-            const data = await this.redis.get(CACHE_KEY_ALL_INCIDENTS) ?? "[]";
-            const cacheIncidents = JSON.parse(data) as Incident[];
+            const data = await this.cacheService.get<Incident[]>(CACHE_KEY_ALL_INCIDENTS);
             
-            if(cacheIncidents.length > 0){
+            if(data && data.length > 0){
                 logger.info("[IncidentService] Incidentes en cache")
-                return cacheIncidents;
+                return data;
             }
             //JSON.PARSE
             //JSON.stringify
@@ -93,7 +95,7 @@ export class IncidentsService {
         });
         logger.info("Creando Incidente");
         await this.incidentRepository.save(newIncident);
-        await this.redis.del(CACHE_KEY_ALL_INCIDENTS);
+        await this.cacheService.delete(CACHE_KEY_ALL_INCIDENTS);
         logger.info("Mandando correo");
         const template = generateIncidentEmailTemplate(incident);
         const options : EmailOptions = {
